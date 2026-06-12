@@ -1,0 +1,242 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with role-based access information, mapped to users/{uid}.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "role", "email", "displayName", "createdAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A course created by an instructor.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "courseCode": { "type": "string" },
+        "courseName": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["courseId", "courseCode", "courseName", "ownerUid", "createdAt"]
+    },
+    "Section": {
+      "title": "Section",
+      "description": "A section of a course.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "sectionName": { "type": "string" },
+        "term": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["courseId", "sectionId", "sectionName", "term", "active"]
+    },
+    "Enrollment": {
+      "title": "Enrollment",
+      "description": "A student enrollment in a section.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "studentUidOrEmail": { "type": "string" },
+        "studentId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["courseId", "sectionId", "studentUidOrEmail", "studentId", "fullName", "email", "status"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "A lesson belonging to a course.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "lessonNo": { "type": "number" },
+        "title": { "type": "string" },
+        "lessonTitle": { "type": "string" },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "questionCount": { "type": "number" }
+      },
+      "required": ["courseId", "lessonId", "lessonNo", "title", "lessonTitle", "active"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A multiple-choice question inside a lesson.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "questionId": { "type": "string" },
+        "questionNo": { "type": "number" },
+        "questionText": { "type": "string" },
+        "choices": { "type": "array" },
+        "correctChoiceIndex": { "type": "number" },
+        "points": { "type": "number" },
+        "explanation": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["courseId", "lessonId", "questionId", "questionNo", "questionText", "choices", "correctChoiceIndex", "points", "active"]
+    },
+    "QuestionSnapshot": {
+      "title": "Question Snapshot",
+      "description": "Static question state copied to active sessions (no correct answers for students during play).",
+      "type": "object",
+      "properties": {
+        "questionId": { "type": "string" },
+        "questionText": { "type": "string" },
+        "choices": { "type": "array" },
+        "correctChoiceIndex": { "type": "number" },
+        "points": { "type": "number" },
+        "explanation": { "type": "string" }
+      },
+      "required": ["questionId", "questionText", "choices", "points"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "An active or archived quiz game session.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "teacherUid": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "open", "closed"] },
+        "startedAt": { "type": "number" },
+        "closedAt": { "type": "number" },
+        "joinCodeHash": { "type": "string" },
+        "questionSnapshot": { "type": "array" },
+        "totalQuestions": { "type": "number" },
+        "maxScore": { "type": "number" },
+        "joinCode": { "type": "string" },
+        "sessionSecret": { "type": "string" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["sessionId", "courseId", "sectionId", "lessonId", "teacherUid", "status", "startedAt", "joinCodeHash", "questionSnapshot", "totalQuestions", "maxScore", "joinCode"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "A student participating in an active session.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "studentUid": { "type": "string" },
+        "email": { "type": "string" },
+        "studentId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "joinedAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["joined", "submitted"] },
+        "lastSeenAt": { "type": "number" },
+        "submittedAt": { "type": "number" }
+      },
+      "required": ["sessionId", "studentUid", "email", "studentId", "fullName", "joinedAt", "status"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A full answer submission doc generated by students.",
+      "type": "object",
+      "properties": {
+        "submissionId": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "studentUid": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "studentDisplayName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "answers": { "type": "array" },
+        "answeredCount": { "type": "number" },
+        "score": { "type": "number" },
+        "maxScore": { "type": "number" },
+        "correctCount": { "type": "number" },
+        "durationMs": { "type": "number" },
+        "startedAt": { "type": "number" },
+        "submittedAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["in_progress", "submitted", "scored_pending", "scored"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["submissionId", "sessionId", "studentUid", "studentEmail", "studentDisplayName", "studentId", "fullName", "answers", "answeredCount", "score", "maxScore", "correctCount", "durationMs", "startedAt", "status", "createdAt", "updatedAt"]
+    },
+    "Leaderboard": {
+      "title": "Leaderboard Slot",
+      "description": "Scores ranked and filtered for visual real-time presentation.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "studentUid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "studentIdMasked": { "type": "string" },
+        "score": { "type": "number" },
+        "submittedAt": { "type": "number" },
+        "durationMs": { "type": "number" }
+      },
+      "required": ["sessionId", "studentUid", "displayName", "studentIdMasked", "score", "submittedAt", "durationMs"]
+    }
+  },
+  "firestore": {
+    "users/{uid}": {
+      "schema": "User",
+      "description": "User profile collection with AU role validation check."
+    },
+    "courses/{courseId}": {
+      "schema": "Course",
+      "description": "Root Academic Courses collection."
+    },
+    "courses/{courseId}/sections/{sectionId}": {
+      "schema": "Section",
+      "description": "Sections subcollection under courses."
+    },
+    "courses/{courseId}/sections/{sectionId}/enrollments/{studentId}": {
+      "schema": "Enrollment",
+      "description": "Student enrollment roster records."
+    },
+    "courses/{courseId}/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Lessons organized for courses."
+    },
+    "courses/{courseId}/lessons/{lessonId}/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Instructor-authored multiple-choice questions."
+    },
+    "sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Active, open, or closed interactive gaming session records."
+    },
+    "sessions/{sessionId}/participants/{participantId}": {
+      "schema": "Participant",
+      "description": "Lobby attendance and presence tracker."
+    },
+    "sessions/{sessionId}/submissions/{studentUid}": {
+      "schema": "Submission",
+      "description": "Locked learner answers submission documents."
+    },
+    "sessions/{sessionId}/leaderboard/{leaderId}": {
+      "schema": "Leaderboard",
+      "description": "Processed ranked scoreboard standings for real-time visualization."
+    },
+    "sessions/{sessionId}/questionSnapshot/{questionId}": {
+      "schema": "QuestionSnapshot",
+      "description": "Filtered question snapshots without answer keys for safety."
+    },
+    "sessions/{sessionId}/privateAnswerKey/{questionId}": {
+      "schema": "Question",
+      "description": "Instructor locked key reference for secure evaluation."
+    }
+  }
+}

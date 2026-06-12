@@ -1,0 +1,6 @@
+{
+  "name": "Interactive Classroom Live Session & Quizzing",
+  "description": "A live classroom session management and interactive quizzing platform with detailed course, lesson, question, and student submission tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

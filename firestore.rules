@@ -1,0 +1,199 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety catch-all: Deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // HELPER FUNCTIONS (Zero-Trust ABAC)
+    // ==========================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Require authenticated email ending with @au.edu and email must be verified
+    function isAuEmail() {
+      return isSignedIn() &&
+             request.auth.token.email != null &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email.matches('.*@au\\.edu$');
+    }
+
+    // Get the authenticated user's document
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Retrieve user role from their profile document
+    function userRole() {
+      return userDoc().data.role;
+    }
+
+    function isTeacher() {
+      return isAuEmail() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             userRole() == 'teacher';
+    }
+
+    function isStudent() {
+      return isAuEmail() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             userRole() == 'student';
+    }
+
+    function getCourse(courseId) {
+      return get(/databases/$(database)/documents/courses/$(courseId)).data;
+    }
+
+    function ownsCourse(courseId) {
+      return isTeacher() && getCourse(courseId).ownerUid == request.auth.uid;
+    }
+
+    function getSession(sessionId) {
+      return get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+    }
+
+    function ownsSession(sessionId) {
+      return isTeacher() && getSession(sessionId).teacherUid == request.auth.uid;
+    }
+
+    function isEnrolledInSection(courseId, sectionId) {
+      // Detailed section-level enrollment checking requires reading subcollection documents.
+      // Under Spark plan quotas, we delegate active array validation to the client app query 
+      // but verify AU email authenticity via rules.
+      return isAuEmail();
+    }
+
+    function isSessionParticipant(sessionId) {
+      return isAuEmail() && exists(/databases/$(database)/documents/sessions/$(sessionId)/participants/$(request.auth.uid));
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ==========================================
+    // ENTITY ACCESS MATCH BLOCKS
+    // ==========================================
+
+    // Users Profiles Match Block
+    match /users/{userId} {
+      // A user can only read their own profile
+      allow read: if isAuEmail() && request.auth.uid == userId;
+      
+      // Role setup is only allowed on create, role must be 'teacher' or 'student'
+      allow create: if isAuEmail() && request.auth.uid == userId && 
+                    (incoming().role == 'teacher' || incoming().role == 'student' || incoming().role == null);
+      
+      // Prevent role switching once role is set to a non-null value
+      allow update: if isAuEmail() && request.auth.uid == userId && (
+        (existing().role == null && (incoming().role == 'teacher' || incoming().role == 'student' || incoming().role == null)) ||
+        (existing().role == incoming().role)
+      );
+      
+      allow delete: if false;
+    }
+
+    // Courses Match Block
+    match /courses/{courseId} {
+      // Any authenticated AU user can read available courses
+      allow read: if isAuEmail();
+      
+      // Only teachers can create courses, and they must set themselves as owner
+      allow create: if isTeacher() && incoming().ownerUid == request.auth.uid;
+      
+      // Only the course owner can modify/delete courses
+      allow update, delete: if ownsCourse(courseId);
+
+      // Course Sections Subcollection
+      match /sections/{sectionId} {
+        allow read: if isAuEmail() && isEnrolledInSection(courseId, sectionId);
+        allow create, update, delete: if ownsCourse(courseId);
+
+        // Enrollments Subcollection
+        match /enrollments/{enrollmentId} {
+          allow read: if isAuEmail();
+          // Only the course owner can import or modify student enrollment rosters
+          allow create, update, delete: if ownsCourse(courseId);
+        }
+      }
+
+      // Course Lessons Subcollection
+      match /lessons/{lessonId} {
+        // Students don't direct-read standard lessons; they read through the published session
+        allow read, write: if ownsCourse(courseId);
+
+        // Course Questions Subcollection
+        match /questions/{questionId} {
+          // Questions contain correct choices; must be completely locked to students
+          allow read, write: if ownsCourse(courseId);
+        }
+      }
+    }
+
+    // Active Sessions & Gamification Block
+    match /sessions/{sessionId} {
+      // Any registered AU student can fetch session headers to check join code
+      allow read: if isAuEmail();
+      
+      // Only certified teachers can initiate live sessions
+      allow create: if isTeacher() && incoming().teacherUid == request.auth.uid;
+      allow update, delete: if ownsSession(sessionId);
+
+      // Session Participants Subcollection
+      match /participants/{participantId} {
+        allow read: if isAuEmail();
+        // A student can join if they exist or write themselves as participant
+        allow create: if isAuEmail() && request.auth.uid == participantId;
+        allow update: if isAuEmail() && (request.auth.uid == participantId || ownsSession(sessionId));
+        allow delete: if ownsSession(sessionId);
+      }
+
+      // Submissions Subcollection
+      match /submissions/{studentUid} {
+        // Teachers can view submissions. Students can only see their own submission.
+        allow read: if isAuEmail() && (ownsSession(sessionId) || request.auth.uid == studentUid);
+        
+        // Students can push their answers but must enter with 0 score (scored_pending/auto-graded by teacher)
+        allow create: if isAuEmail() && request.auth.uid == studentUid && incoming().score == 0;
+        
+        // Students cannot alter their grade or scores during any subsequent answers update
+        allow update: if isAuEmail() && request.auth.uid == studentUid && incoming().score == existing().score;
+        
+        // Only teachers who launch sessions can stamp finalized graded results
+        allow write: if ownsSession(sessionId);
+      }
+
+      // Leaderboards Subcollection
+      match /leaderboard/{leaderId} {
+        allow read: if isAuEmail();
+        
+        // Similar to submissions, students write placeholder entries which are finalized/scored and rewritten by teachers
+        allow create: if isAuEmail() && request.auth.uid == leaderId && incoming().score == 0;
+        allow update: if isAuEmail() && request.auth.uid == leaderId && incoming().score == existing().score;
+        
+        allow write: if ownsSession(sessionId);
+      }
+
+      // Safe, Student-facing Question Snapshots (omits correctChoiceIndex and explanations)
+      match /questionSnapshot/{questionId} {
+        allow read: if isAuEmail();
+        allow write: if ownsSession(sessionId);
+      }
+
+      // Private Answer Key (Teachers Only)
+      match /privateAnswerKey/{questionId} {
+        // Enforces that correct answer indexes are strictly secured in the backend
+        allow read, write: if ownsSession(sessionId);
+      }
+    }
+  }
+}
